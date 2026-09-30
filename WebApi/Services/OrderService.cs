@@ -28,11 +28,10 @@ namespace WebApi.Services
             var customers =
                 await _customerRepository.GetAllAsync();
 
-            var result =
-                from order in orders
-                join customer in customers
-                    on order.CustomerId equals customer.Id
-                select new OrderResponse
+            var result = orders.Join(customers,
+                order => order.CustomerId,
+                customer => customer.Id,
+                (order, customer) => new OrderResponse
                 {
                     Id = order.Id,
                     CustomerId = order.CustomerId,
@@ -40,14 +39,13 @@ namespace WebApi.Services
                     Amount = order.Amount,
                     IsPaid = order.IsPaid,
                     CreatedAt = order.CreatedAt,
-
                     Customer = new CustomerInfoDto
                     {
                         Id = customer.Id,
                         Name = customer.Name,
                         Email = customer.Email
                     }
-                };
+                });
 
             if (query.CustomerId.HasValue)
             {

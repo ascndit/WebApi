@@ -29,12 +29,21 @@ builder.Services.AddSingleton(
         ordersFile,
         order => order.Id));
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 
 builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<OrderService>();
 
 var app = builder.Build();
 
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 

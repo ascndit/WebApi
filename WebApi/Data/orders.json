@@ -1,1 +1,50 @@
-[]
+[
+  {
+    "id": 1,
+    "customerId": 1,
+    "description": "sas",
+    "amount": 3213,
+    "isPaid": true,
+    "createdAt": "2026-09-30T15:13:53.1000574Z"
+  },
+  {
+    "id": 2,
+    "customerId": 2,
+    "description": "sas",
+    "amount": 3213,
+    "isPaid": true,
+    "createdAt": "2026-09-30T15:14:03.1226243Z"
+  },
+  {
+    "id": 3,
+    "customerId": 3,
+    "description": "sas",
+    "amount": 3213,
+    "isPaid": true,
+    "createdAt": "2026-09-30T15:14:06.7373414Z"
+  },
+  {
+    "id": 4,
+    "customerId": 1,
+    "description": "sass",
+    "amount": 34513,
+    "isPaid": true,
+    "createdAt": "2026-09-30T15:14:35.3196606Z"
+  },
+  {
+    "id": 5,
+    "customerId": 2,
+    "description": "sass",
+    "amount": 34513,
+    "isPaid": true,
+    "createdAt": "2026-09-30T15:14:39.4477098Z"
+  },
+  {
+    "id": 6,
+    "customerId": 3,
+    "description": "sass",
+    "amount": 34513,
+    "isPaid": true,
+    "createdAt": "2026-09-30T15:14:43.8803024Z"
+  }
+]
