@@ -1,9 +1,14 @@
+using Microsoft.EntityFrameworkCore;
+using WebApi.Data;
 using WebApi.Middleware;
 using WebApi.Models;
 using WebApi.Repositories;
 using WebApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddControllers();
 var dataDirectory = Path.Combine(
