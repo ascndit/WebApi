@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WebApi.Data;
 using WebApi.Middleware;
-using WebApi.Models;
-using WebApi.Repositories;
 using WebApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,28 +9,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddControllers();
-var dataDirectory = Path.Combine(
-    builder.Environment.ContentRootPath,
-    "Data");
-
-var customersFile = Path.Combine(
-    dataDirectory,
-    "customers.json");
-
-var ordersFile = Path.Combine(
-    dataDirectory,
-    "orders.json");
 
 
-builder.Services.AddSingleton(
-    new JsonFileRepository<Customer>(
-        customersFile,
-        customer => customer.Id));
-
-builder.Services.AddSingleton(
-    new JsonFileRepository<Order>(
-        ordersFile,
-        order => order.Id));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -51,18 +29,6 @@ app.UseSwaggerUI(c =>
 });
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-
-var customerRepository =
-    app.Services
-        .GetRequiredService<JsonFileRepository<Customer>>();
-
-var orderRepository =
-    app.Services
-        .GetRequiredService<JsonFileRepository<Order>>();
-
-await customerRepository.InitializeAsync();
-await orderRepository.InitializeAsync();
-
 
 app.MapControllers();
 

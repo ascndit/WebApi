@@ -1,20 +1,17 @@
-﻿using WebApi.Dtos;
+﻿using Microsoft.EntityFrameworkCore;
+using WebApi.Data;
+using WebApi.Dtos;
 using WebApi.Models;
-using WebApi.Repositories;
 
 namespace WebApi.Services
 {
     public class OrderService
     {
-        private readonly JsonFileRepository<Order> _orderRepository;
-        private readonly JsonFileRepository<Customer> _customerRepository;
+        private readonly AppDbContext _context;
 
-        public OrderService(
-            JsonFileRepository<Order> orderRepository,
-            JsonFileRepository<Customer> customerRepository)
+        public OrderService(AppDbContext context)
         {
-            _orderRepository = orderRepository;
-            _customerRepository = customerRepository;
+            _context = context;
         }
 
         public async Task<PagedResult<OrderResponse>> GetAllAsync(
@@ -22,30 +19,26 @@ namespace WebApi.Services
         {
             ValidateQuery(query);
 
-            var orders =
-                await _orderRepository.GetAllAsync();
-
-            var customers =
-                await _customerRepository.GetAllAsync();
-
-            var result = orders.Join(customers,
-                order => order.CustomerId,
-                customer => customer.Id,
-                (order, customer) => new OrderResponse
-                {
-                    Id = order.Id,
-                    CustomerId = order.CustomerId,
-                    Description = order.Description,
-                    Amount = order.Amount,
-                    IsPaid = order.IsPaid,
-                    CreatedAt = order.CreatedAt,
-                    Customer = new CustomerInfoDto
+            var result = _context.Orders
+                .Join(
+                    _context.Customers,
+                    order => order.CustomerId,
+                    customer => customer.Id,
+                    (order, customer) => new OrderResponse
                     {
-                        Id = customer.Id,
-                        Name = customer.Name,
-                        Email = customer.Email
-                    }
-                });
+                        Id = order.Id,
+                        CustomerId = order.CustomerId,
+                        Description = order.Description,
+                        Amount = order.Amount,
+                        IsPaid = order.IsPaid,
+                        CreatedAt = order.CreatedAt,
+                        Customer = new CustomerInfoDto
+                        {
+                            Id = customer.Id,
+                            Name = customer.Name,
+                            Email = customer.Email
+                        }
+                    });
 
             if (query.CustomerId.HasValue)
             {
@@ -71,16 +64,15 @@ namespace WebApi.Services
                         query.MinAmount.Value);
             }
 
-            var list = result
-                .OrderByDescending(order => order.Id)
-                .ToList();
+            result = result
+                .OrderByDescending(order => order.Id);
 
-            var totalCount = list.Count;
+            var totalCount = await result.CountAsync();
 
-            var items = list
+            var items = await result
                 .Skip((query.Page - 1) * query.PageSize)
                 .Take(query.PageSize)
-                .ToList();
+                .ToListAsync();
 
             var totalPages =
                 (int)Math.Ceiling(
@@ -98,19 +90,13 @@ namespace WebApi.Services
 
         public async Task<OrderResponse?> GetByIdAsync(int id)
         {
-            var orders =
-                await _orderRepository.GetAllAsync();
-
-            var customers =
-                await _customerRepository.GetAllAsync();
-
-            var result =
-                from order in orders
-                join customer in customers
-                    on order.CustomerId equals customer.Id
-                where order.Id == id
-                select new OrderResponse
-                {
+            var result = _context.Orders
+                .Join(
+                    _context.Customers,
+                    order => order.CustomerId,
+                    customer => customer.Id,
+                    (order, customer) => new OrderResponse
+                    {
                     Id = order.Id,
                     CustomerId = order.CustomerId,
                     Description = order.Description,
@@ -124,17 +110,18 @@ namespace WebApi.Services
                         Name = customer.Name,
                         Email = customer.Email
                     }
-                };
+                });
 
-            return result.FirstOrDefault();
+            return await result
+                .Where(order => order.Id == id)
+                .FirstOrDefaultAsync();
         }
 
         public async Task<Order> CreateAsync(
             OrderRequest request)
         {
-            var customer =
-                await _customerRepository
-                    .GetByIdAsync(request.CustomerId);
+            var customer = await _context.Customers
+                .FirstOrDefaultAsync(customer => customer.Id == request.CustomerId);
 
             if (customer == null)
             {
@@ -142,16 +129,17 @@ namespace WebApi.Services
                     "Клиент с указанным CustomerId не существует.");
             }
 
-            return await _orderRepository.AddAsync(
-                id => new Order
-                {
-                    Id = id,
-                    CustomerId = request.CustomerId,
-                    Description = request.Description.Trim(),
-                    Amount = request.Amount,
-                    IsPaid = request.IsPaid,
-                    CreatedAt = DateTime.UtcNow
-                });
+            var order = new Order
+            {
+                CustomerId = request.CustomerId,
+                Description = request.Description.Trim(),
+                Amount = request.Amount,
+                IsPaid = request.IsPaid,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _context.Orders.AddAsync(order);
+            await _context.SaveChangesAsync();
+            return order;
         }
 
         public async Task<Order?> UpdateAsync(
@@ -159,16 +147,16 @@ namespace WebApi.Services
             OrderRequest request)
         {
             var existing =
-                await _orderRepository.GetByIdAsync(id);
+                await _context.Orders
+                    .FirstOrDefaultAsync(order => order.Id == id);
 
             if (existing == null)
             {
                 return null;
             }
 
-            var customer =
-                await _customerRepository
-                    .GetByIdAsync(request.CustomerId);
+            var customer = await _context.Customers
+                .FirstOrDefaultAsync(customer => customer.Id == request.CustomerId);
 
             if (customer == null)
             {
@@ -176,27 +164,33 @@ namespace WebApi.Services
                     "Клиент с указанным CustomerId не существует.");
             }
 
-            var updated = new Order
-            {
-                Id = id,
-                CustomerId = request.CustomerId,
-                Description = request.Description.Trim(),
-                Amount = request.Amount,
-                IsPaid = request.IsPaid,
-                CreatedAt = existing.CreatedAt
-            };
+                existing.CustomerId = request.CustomerId;
+                existing.Description = request.Description.Trim();
+                existing.Amount = request.Amount;
+                existing.IsPaid = request.IsPaid;
 
-            await _orderRepository.UpdateAsync(
-                id,
-                updated);
-
-            return updated;
+            await _context.SaveChangesAsync();
+            return existing;
         }
 
-        public Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id)
         {
-            return _orderRepository.DeleteAsync(id);
+            var existing =
+                await _context.Orders
+                    .FirstOrDefaultAsync(order => order.Id == id);
+
+            if (existing == null)
+            {
+                return false;
+            }
+            _context.Orders.Remove(existing);
+
+            await _context.SaveChangesAsync();
+
+            return true;
         }
+
+
 
         private static void ValidateQuery(OrderQuery query)
         {

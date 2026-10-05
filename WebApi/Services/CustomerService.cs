@@ -1,53 +1,60 @@
-﻿using WebApi.Dtos;
+﻿using WebApi.Data;
+using WebApi.Dtos;
 using WebApi.Exceptions;
 using WebApi.Models;
-using WebApi.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace WebApi.Services
 {
     public class CustomerService
     {
-        private readonly JsonFileRepository<Customer> _customerRepository;
-        private readonly JsonFileRepository<Order> _orderRepository;
+        private readonly AppDbContext _context;
 
-        public CustomerService(
-            JsonFileRepository<Customer> customerRepository,
-            JsonFileRepository<Order> orderRepository)
+        public CustomerService(AppDbContext context)
         {
-            _customerRepository = customerRepository;
-            _orderRepository = orderRepository;
+            _context = context;
         }
 
         public async Task<PagedResult<Customer>> GetAllAsync(
             PaginationQuery pagination)
         {
-            var customers =
-                await _customerRepository.GetAllAsync();
-
-            var ordered = customers
-                .OrderBy(c => c.Id)
-                .ToList();
-
-            return CreatePagedResult(
-                ordered,
-                pagination);
+            var query = _context.Customers
+                 .OrderBy(c => c.Id);
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip((pagination.Page - 1) * pagination.PageSize)
+                .Take(pagination.PageSize)
+                .ToListAsync();
+            var totalPages =
+                (int)Math.Ceiling(
+                    totalCount / (double)pagination.PageSize);
+            return new PagedResult<Customer>
+            {
+                Page = pagination.Page,
+                PageSize = pagination.PageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages,
+                Items = items
+            };
         }
 
-        public Task<Customer?> GetByIdAsync(int id)
+        public async Task<Customer?> GetByIdAsync(int id)
         {
-            return _customerRepository.GetByIdAsync(id);
+            return await _context.Customers
+                .FirstOrDefaultAsync(c => c.Id == id);
         }
 
         public async Task<Customer> CreateAsync(
             CustomerRequest request)
         {
-            return await _customerRepository.AddAsync(
-                id => new Customer
-                {
-                    Id = id,
-                    Name = request.Name.Trim(),
-                    Email = request.Email.Trim()
-                });
+            var customer = new Customer
+            {
+                Name = request.Name.Trim(),
+                Email = request.Email.Trim()
+            };
+            await _context.Customers.AddAsync(customer);
+            await _context.SaveChangesAsync();
+            return customer;
         }
 
         public async Task<Customer?> UpdateAsync(
@@ -55,42 +62,31 @@ namespace WebApi.Services
             CustomerRequest request)
         {
             var existing =
-                await _customerRepository.GetByIdAsync(id);
-
+                await _context.Customers
+                    .FirstOrDefaultAsync(c => c.Id == id);
             if (existing == null)
             {
                 return null;
             }
-
-            var customer = new Customer
-            {
-                Id = id,
-                Name = request.Name.Trim(),
-                Email = request.Email.Trim()
-            };
-
-            await _customerRepository.UpdateAsync(
-                id,
-                customer);
-
-            return customer;
+            existing.Name = request.Name.Trim();
+            existing.Email = request.Email.Trim();
+            await _context.SaveChangesAsync();
+            return existing;
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
             var existing =
-                await _customerRepository.GetByIdAsync(id);
+                await _context.Customers
+                    .FirstOrDefaultAsync(c => c.Id == id);
 
             if (existing == null)
             {
                 return false;
             }
 
-            var orders =
-                await _orderRepository.GetAllAsync();
-
-            var hasOrders = orders.Any(
-                order => order.CustomerId == id);
+            var hasOrders = await _context.Orders
+                .AnyAsync(order => order.CustomerId == id);
 
             if (hasOrders)
             {
@@ -98,7 +94,11 @@ namespace WebApi.Services
                     "Нельзя удалить клиента, у которого есть заказы.");
             }
 
-            return await _customerRepository.DeleteAsync(id);
+            _context.Customers.Remove(existing);
+
+            await _context.SaveChangesAsync();
+
+            return true;
         }
 
         private static PagedResult<Customer> CreatePagedResult(
