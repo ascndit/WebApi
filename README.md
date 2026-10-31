@@ -8,6 +8,7 @@ REST API для клиентов и заказов.
 - Entity Framework Core и PostgreSQL
 - Swagger
 - контроллеры, сервисы, DTO, middleware обработки ошибок, миграции
+- unit-тесты сервисов на xUnit
 
 ## Запуск
 
@@ -20,6 +21,12 @@ dotnet run --project WebApi
 ```
 
 Swagger открывается по адресу `/swagger`.
+
+## Тесты
+
+```bash
+dotnet test
+```
 
 ## Методы
 
